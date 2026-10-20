@@ -54,6 +54,17 @@
       touch-action: none;
     }
 
+    #fxCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: block;
+      z-index: 999;
+      pointer-events: none;
+    }
+
     /* ==================== TOP BAR ==================== */
     .top-bar {
       position: fixed;
@@ -1308,6 +1319,8 @@
 
   <!-- Canvas chính vẽ toàn bộ vườn hoa hồng & hiệu ứng tương tác -->
   <canvas id="gardenCanvas"></canvas>
+  <!-- Canvas hiệu ứng pháo hoa trái tim nổi phía trên mọi hộp thoại/Lightbox -->
+  <canvas id="fxCanvas"></canvas>
 
   <script>
     (() => {
@@ -1319,6 +1332,8 @@
 
       const canvas = document.getElementById('gardenCanvas');
       const ctx = canvas.getContext('2d', { alpha: false });
+      const fxCanvas = document.getElementById('fxCanvas');
+      const fxCtx = fxCanvas.getContext('2d');
 
       // DOM Elements
       const introHeader = document.getElementById('introHeader');
@@ -1466,6 +1481,7 @@
         stars: [],
         shootingStars: [],
         fireworks: [],
+        floatingHearts: [],
         trailParticles: [],
         skyLanterns: [],
         pointerX: width * 0.5,
@@ -1520,8 +1536,12 @@
 
       // =========================================================================
       // QUẢN LÝ ẢNH THÀNH VIÊN, ẢNH KỶ NIỆM & LOCALSTORAGE
+      // Đặt Tú Quyên ở vị trí chính giữa (index 2 trong 5 bạn nữ)
       // =========================================================================
-      const memberPhotos = EMBEDDED_PHOTOS.filter(p => p.category === 'member');
+      const memberOrder = ['thanh_lam', 'ngoc_phuong', 'tu_quyen', 'nhu_quynh', 'truc_anh'];
+      const memberPhotos = memberOrder
+        .map(id => EMBEDDED_PHOTOS.find(p => p.id === id))
+        .filter(Boolean);
       const builtinMemoryPhotos = EMBEDDED_PHOTOS.filter(p => p.category === 'memory');
       let userUploadedPhotos = [];
 
@@ -1669,8 +1689,7 @@
         lightboxBackdrop.classList.remove('active');
       });
       document.getElementById('btnLightboxFirework').addEventListener('click', () => {
-        launchFirework(width * 0.3, height * 0.25, true);
-        setTimeout(() => launchFirework(width * 0.7, height * 0.25, true), 220);
+        spawnHeartCelebration();
       });
       document.getElementById('btnLightboxBackGallery').addEventListener('click', () => {
         lightboxBackdrop.classList.remove('active');
@@ -2436,6 +2455,40 @@
           duration: 1.45,
           sparks
         });
+      }
+
+      // Bắn mưa tim & pháo hoa trái tim rực rỡ ngay trên màn hình (nổi trên cả Lightbox)
+      function spawnHeartCelebration() {
+        soundEngine.playCatchSound(true);
+        const positions = [
+          [width * 0.22, height * 0.28],
+          [width * 0.50, height * 0.22],
+          [width * 0.78, height * 0.28],
+          [width * 0.34, height * 0.42],
+          [width * 0.66, height * 0.42]
+        ];
+        positions.forEach(([px, py], idx) => {
+          setTimeout(() => {
+            launchFirework(px + (Math.random() - 0.5) * 40, py + (Math.random() - 0.5) * 30, true);
+          }, idx * 140);
+        });
+
+        const heartColors = ['#ff3b7f', '#ff6fa5', '#ff9ebb', '#ffd166', '#ec4899'];
+        for (let i = 0; i < 28; i++) {
+          state.floatingHearts.push({
+            x: width * (0.12 + Math.random() * 0.76),
+            y: height * (0.65 + Math.random() * 0.28),
+            vx: (Math.random() - 0.5) * 70,
+            vy: -(110 + Math.random() * 140),
+            size: 10 + Math.random() * 14,
+            rot: (Math.random() - 0.5) * 0.5,
+            rotSpeed: (Math.random() - 0.5) * 1.8,
+            swayPhase: Math.random() * Math.PI * 2,
+            life: 1,
+            decay: 0.42 + Math.random() * 0.28,
+            color: heartColors[i % heartColors.length]
+          });
+        }
       }
 
       function releaseSkyLantern(wishText) {
@@ -3256,9 +3309,11 @@
       }
 
       // =========================================================================
-      // VẼ TIỀN CẢNH: PHÁO HOA, CÁNH HOA RƠI, BƯỚM, ĐOM ĐÓM & VỆT SÁNG CHUỘT
+      // VẼ TIỀN CẢNH: PHÁO HOA, TIM BAY, CÁNH HOA RƠI, BƯỚM, ĐOM ĐÓM & VỆT SÁNG CHUỘT
       // =========================================================================
       function drawAtmosphereForeground(time, dt) {
+        fxCtx.clearRect(0, 0, width, height);
+
         for (let i = state.fireworks.length - 1; i >= 0; i--) {
           const fw = state.fireworks[i];
           fw.age += dt;
@@ -3273,11 +3328,39 @@
             sp.vy += 42 * dt;
             sp.vx *= Math.pow(0.28, dt);
             const alpha = (1 - progress) * sp.alpha;
-            ctx.fillStyle = rgbStr(sp.color, alpha);
-            ctx.beginPath();
-            ctx.arc(sp.x, sp.y, sp.r * (1 - progress * 0.4), 0, Math.PI * 2);
-            ctx.fill();
+            fxCtx.fillStyle = rgbStr(sp.color, alpha);
+            fxCtx.beginPath();
+            fxCtx.arc(sp.x, sp.y, sp.r * (1 - progress * 0.35), 0, Math.PI * 2);
+            fxCtx.fill();
           }
+        }
+
+        // Vẽ các trái tim bay lên khi bấm nút "Bắn tim chúc mừng"
+        for (let i = state.floatingHearts.length - 1; i >= 0; i--) {
+          const fh = state.floatingHearts[i];
+          fh.x += (fh.vx + Math.sin(time * 3 + fh.swayPhase) * 28) * dt;
+          fh.y += fh.vy * dt;
+          fh.rot += fh.rotSpeed * dt;
+          fh.life -= fh.decay * dt;
+          if (fh.life <= 0) {
+            state.floatingHearts.splice(i, 1);
+            continue;
+          }
+          const s = fh.size * (0.7 + 0.3 * Math.sin((1 - fh.life) * Math.PI));
+          fxCtx.save();
+          fxCtx.translate(fh.x, fh.y);
+          fxCtx.rotate(fh.rot);
+          fxCtx.globalAlpha = clamp(fh.life, 0, 1);
+          fxCtx.fillStyle = fh.color;
+          fxCtx.shadowColor = 'rgba(255, 64, 129, 0.55)';
+          fxCtx.shadowBlur = 10;
+          fxCtx.beginPath();
+          fxCtx.moveTo(0, s * 0.35);
+          fxCtx.bezierCurveTo(-s, -s * 0.35, -s * 0.55, -s * 1.05, 0, -s * 0.42);
+          fxCtx.bezierCurveTo(s * 0.55, -s * 1.05, s, -s * 0.35, 0, s * 0.35);
+          fxCtx.closePath();
+          fxCtx.fill();
+          fxCtx.restore();
         }
 
         for (let i = state.trailParticles.length - 1; i >= 0; i--) {
@@ -3289,10 +3372,10 @@
             state.trailParticles.splice(i, 1);
             continue;
           }
-          ctx.fillStyle = `rgba(${tp.color}, ${tp.life * 0.85})`;
-          ctx.beginPath();
-          ctx.arc(tp.x, tp.y, tp.r * tp.life, 0, Math.PI * 2);
-          ctx.fill();
+          fxCtx.fillStyle = `rgba(${tp.color}, ${tp.life * 0.85})`;
+          fxCtx.beginPath();
+          fxCtx.arc(tp.x, tp.y, tp.r * tp.life, 0, Math.PI * 2);
+          fxCtx.fill();
         }
 
         for (let i = state.ripples.length - 1; i >= 0; i--) {
@@ -3692,6 +3775,10 @@
         canvas.width = Math.floor(width * dpr);
         canvas.height = Math.floor(height * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        fxCanvas.width = Math.floor(width * dpr);
+        fxCanvas.height = Math.floor(height * dpr);
+        fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         if (dpr !== lastDpr) {
           buildRoseSprites();
